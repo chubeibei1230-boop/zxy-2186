@@ -44,6 +44,24 @@ export interface FilterState {
   owner: string;
 }
 
+export interface PracticePlanItem {
+  patternId: string;
+  snapshot?: PaperPattern;
+  addedAt: number;
+}
+
+export interface PracticePlan {
+  id: string;
+  name: string;
+  scenario: string;
+  estimatedDuration: string;
+  owner: string;
+  items: PracticePlanItem[];
+  order: number;
+  createdAt: number;
+  updatedAt: number;
+}
+
 export interface AppSettings {
   totalDurationLimit: number;
   maxItemsPerOwner: number;
@@ -94,6 +112,21 @@ export function createEmptyPattern(order: number): PaperPattern {
     steps: [],
     materials: [],
     notes: '',
+    createdAt: now,
+    updatedAt: now,
+  };
+}
+
+export function createEmptyPlan(order: number): PracticePlan {
+  const now = Date.now();
+  return {
+    id: `plan_${now}_${Math.random().toString(36).slice(2, 9)}`,
+    name: '',
+    scenario: '',
+    estimatedDuration: '',
+    owner: '',
+    items: [],
+    order,
     createdAt: now,
     updatedAt: now,
   };

@@ -1,13 +1,18 @@
 import { openDB, IDBPDatabase } from 'idb';
-import { PaperPattern, FilterState, AppSettings } from './types';
+import { PaperPattern, FilterState, AppSettings, PracticePlan } from './types';
 
 const DB_NAME = 'paper-cutting-db';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 interface DBSchema {
   patterns: {
     key: string;
     value: PaperPattern;
+    indexes: { 'by-order': number };
+  };
+  plans: {
+    key: string;
+    value: PracticePlan;
     indexes: { 'by-order': number };
   };
   settings: {
@@ -29,7 +34,7 @@ let dbPromise: Promise<IDBPDatabase<DBSchema>> | null = null;
 function getDB(): Promise<IDBPDatabase<DBSchema>> {
   if (!dbPromise) {
     dbPromise = openDB<DBSchema>(DB_NAME, DB_VERSION, {
-      upgrade(db) {
+      upgrade(db, oldVersion) {
         if (!db.objectStoreNames.contains('patterns')) {
           const store = db.createObjectStore('patterns', { keyPath: 'id' });
           store.createIndex('by-order', 'order');
@@ -42,6 +47,10 @@ function getDB(): Promise<IDBPDatabase<DBSchema>> {
         }
         if (!db.objectStoreNames.contains('uiState')) {
           db.createObjectStore('uiState', { keyPath: 'id' });
+        }
+        if (!db.objectStoreNames.contains('plans')) {
+          const store = db.createObjectStore('plans', { keyPath: 'id' });
+          store.createIndex('by-order', 'order');
         }
       },
     });
@@ -91,6 +100,43 @@ export async function deletePatternsBulk(ids: string[]): Promise<void> {
   const db = await getDB();
   const tx = db.transaction('patterns', 'readwrite');
   await Promise.all([...ids.map(id => tx.store.delete(id)), tx.done]);
+}
+
+export async function getAllPlans(): Promise<PracticePlan[]> {
+  const db = await getDB();
+  const items = await db.getAll('plans');
+  return items.map(normalizePlan).sort((a, b) => a.order - b.order);
+}
+
+function normalizePlan(plan: PracticePlan): PracticePlan {
+  return {
+    ...plan,
+    items: Array.isArray(plan.items) ? plan.items : [],
+  };
+}
+
+export async function savePlan(plan: PracticePlan): Promise<void> {
+  const db = await getDB();
+  plan.updatedAt = Date.now();
+  await db.put('plans', plan);
+}
+
+export async function savePlansBulk(plans: PracticePlan[]): Promise<void> {
+  const db = await getDB();
+  const tx = db.transaction('plans', 'readwrite');
+  const now = Date.now();
+  await Promise.all([
+    ...plans.map(p => {
+      p.updatedAt = now;
+      return tx.store.put(p);
+    }),
+    tx.done,
+  ]);
+}
+
+export async function deletePlan(id: string): Promise<void> {
+  const db = await getDB();
+  await db.delete('plans', id);
 }
 
 export async function saveFilters(filters: FilterState): Promise<void> {

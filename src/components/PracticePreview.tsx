@@ -1,13 +1,14 @@
 import { useState, useEffect } from 'react';
-import { PaperPattern, STATUS_COLORS, DIFFICULTY_COLORS } from '../types';
-import { X, Clock, Users, ChevronDown, ChevronRight, CheckCircle2, Circle, Download, Package } from 'lucide-react';
+import { PaperPattern, STATUS_COLORS, DIFFICULTY_COLORS, PracticePlan } from '../types';
+import { X, Clock, Users, ChevronDown, ChevronRight, CheckCircle2, Circle, Download, Package, User, FolderOpen } from 'lucide-react';
 
 interface PracticePreviewProps {
   patterns: PaperPattern[];
+  plan?: PracticePlan;
   onClose: () => void;
 }
 
-export default function PracticePreview({ patterns, onClose }: PracticePreviewProps) {
+export default function PracticePreview({ patterns, plan, onClose }: PracticePreviewProps) {
   const [checks, setChecks] = useState<Record<string, boolean>>({});
   const [matChecks, setMatChecks] = useState<Record<string, boolean>>({});
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
@@ -51,7 +52,26 @@ export default function PracticePreview({ patterns, onClose }: PracticePreviewPr
   };
 
   const exportList = () => {
-    const lines = ['# 剪纸练习执行清单', '', `生成时间：${new Date().toLocaleString('zh-CN')}`, `共 ${patterns.length} 项，总时长 ${totalDuration} 分钟`, ''];
+    const lines: string[] = [];
+    if (plan) {
+      lines.push(`# ${plan.name || '未命名方案'}`);
+      lines.push('');
+      if (plan.scenario) lines.push(`**适用场景：** ${plan.scenario}`);
+      if (plan.estimatedDuration) lines.push(`**预计总时长：** ${plan.estimatedDuration}`);
+      if (plan.owner) lines.push(`**负责人：** ${plan.owner}`);
+      lines.push(`**内容数量：** ${plan.items.length} 项图样`);
+      lines.push('');
+      lines.push('---');
+      lines.push('');
+      lines.push('## 图样清单');
+      lines.push('');
+    } else {
+      lines.push('# 剪纸练习执行清单');
+      lines.push('');
+      lines.push(`生成时间：${new Date().toLocaleString('zh-CN')}`);
+    }
+    lines.push(`共 ${patterns.length} 项，内容累计时长 ${totalDuration} 分钟`);
+    lines.push('');
     patterns.forEach((p, idx) => {
       lines.push(`## ${idx + 1}. ${p.name || '未命名图样'}`);
       lines.push(`- 主题：${p.theme || '-'} | 难度：${p.difficulty} | 时长：${p.estimatedDuration}分钟`);
@@ -93,10 +113,20 @@ export default function PracticePreview({ patterns, onClose }: PracticePreviewPr
       <div className="modal modal-large" onClick={e => e.stopPropagation()}>
         <div className="modal-header">
           <div>
-            <h3>练习顺序预览</h3>
+            <h3>
+              {plan ? (
+                <>
+                  <FolderOpen size={18} style={{ display: 'inline', verticalAlign: '-3px', marginRight: 6 }} />
+                  {plan.name || '未命名方案'}
+                </>
+              ) : '练习顺序预览'}
+            </h3>
             <div className="preview-meta">
+              {plan && plan.scenario && <span>场景：{plan.scenario}</span>}
+              {plan && plan.owner && <span><User size={12} /> {plan.owner}</span>}
+              {plan && plan.estimatedDuration && <span><Clock size={14} /> {plan.estimatedDuration}</span>}
               <span>共 {patterns.length} 项</span>
-              <span><Clock size={14} /> {totalDuration} 分钟</span>
+              <span><Clock size={14} /> 内容 {totalDuration} 分钟</span>
               <span>图样进度 {completedCount}/{patterns.length} ({Math.round(completedCount / Math.max(patterns.length, 1) * 100)}%)</span>
               <span><Package size={14} /> 材料 {checkedMaterials}/{totalMaterials}</span>
             </div>

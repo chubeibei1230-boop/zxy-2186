@@ -1,8 +1,12 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { PaperPattern, FilterState, AppSettings, createEmptyPattern, PracticeStatus, CheckIssue } from './types';
+import {
+  PaperPattern, FilterState, AppSettings, createEmptyPattern, PracticeStatus, CheckIssue,
+  PracticePlan, createEmptyPlan,
+} from './types';
 import {
   getAllPatterns, savePattern, savePatternsBulk, deletePattern, deletePatternsBulk,
   saveFilters, loadFilters, saveSettings, loadSettings, saveUIState, loadUIState,
+  getAllPlans, savePlan, savePlansBulk, deletePlan,
 } from './db';
 import { runChecks } from './checks';
 import FilterBar from './components/FilterBar';
@@ -12,7 +16,12 @@ import IssuesPanel from './components/IssuesPanel';
 import BulkActionsBar from './components/BulkActionsBar';
 import PracticePreview from './components/PracticePreview';
 import SettingsPanel from './components/SettingsPanel';
-import { Plus, Play, Settings as SettingsIcon, Scissors, RotateCcw, ClipboardCopy } from 'lucide-react';
+import PlanList from './components/PlanList';
+import PlanEditor from './components/PlanEditor';
+import {
+  Plus, Play, Settings as SettingsIcon, Scissors, RotateCcw, ClipboardCopy,
+  FolderOpen, X, Edit3,
+} from 'lucide-react';
 
 const DEFAULT_FILTERS: FilterState = {
   keyword: '',
@@ -22,8 +31,25 @@ const DEFAULT_FILTERS: FilterState = {
   owner: '',
 };
 
+function resolvePlanPatterns(plan: PracticePlan, allPatterns: PaperPattern[]): PaperPattern[] {
+  const result: PaperPattern[] = [];
+  for (const item of plan.items) {
+    const current = allPatterns.find(p => p.id === item.patternId);
+    if (current) {
+      result.push(current);
+    } else if (item.snapshot) {
+      result.push(item.snapshot);
+    }
+  }
+  return result;
+}
+
 export default function App() {
   const [patterns, setPatterns] = useState<PaperPattern[]>([]);
+  const [plans, setPlans] = useState<PracticePlan[]>([]);
+  const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
+  const [showPlanPanel, setShowPlanPanel] = useState(false);
+  const [showPlanEditor, setShowPlanEditor] = useState(false);
   const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS);
   const [settings, setSettings] = useState<AppSettings>({ totalDurationLimit: 180, maxItemsPerOwner: 5 });
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -35,15 +61,23 @@ export default function App() {
 
   useEffect(() => {
     const init = async () => {
-      const [loadedPatterns, loadedFilters, loadedSettings, uiState] = await Promise.all([
+      const [loadedPatterns, loadedPlans, loadedFilters, loadedSettings, uiState] = await Promise.all([
         getAllPatterns(),
+        getAllPlans(),
         loadFilters(),
         loadSettings(),
         loadUIState(),
       ]);
       setPatterns(loadedPatterns);
+      setPlans(loadedPlans);
       if (loadedFilters) setFilters(loadedFilters);
       setSettings(loadedSettings);
+
+      const savedPlanId = uiState.selectedPlanId as string | undefined;
+      if (savedPlanId && loadedPlans.find(p => p.id === savedPlanId)) {
+        setSelectedPlanId(savedPlanId);
+      }
+
       if (loadedPatterns.length > 0) {
         const savedSelected = uiState.selectedId as string | undefined;
         if (savedSelected && loadedPatterns.find(p => p.id === savedSelected)) {
@@ -57,21 +91,26 @@ export default function App() {
     init();
   }, []);
 
-  useEffect(() => {
-    saveFilters(filters);
-  }, [filters]);
+  useEffect(() => { saveFilters(filters); }, [filters]);
+  useEffect(() => { saveSettings(settings); }, [settings]);
+  useEffect(() => { if (selectedId) saveUIState('selectedId', selectedId); }, [selectedId]);
+  useEffect(() => { saveUIState('selectedPlanId', selectedPlanId); }, [selectedPlanId]);
 
-  useEffect(() => {
-    saveSettings(settings);
-  }, [settings]);
+  const currentPlan = useMemo(
+    () => (selectedPlanId ? plans.find(p => p.id === selectedPlanId) || null : null),
+    [plans, selectedPlanId]
+  );
 
-  useEffect(() => {
-    if (selectedId) saveUIState('selectedId', selectedId);
-  }, [selectedId]);
+  const scopedPatterns: PaperPattern[] = useMemo(() => {
+    if (currentPlan) {
+      return resolvePlanPatterns(currentPlan, patterns);
+    }
+    return patterns;
+  }, [currentPlan, patterns]);
 
   const filteredPatterns = useMemo(() => {
     const kw = filters.keyword.trim().toLowerCase();
-    return patterns.filter(p => {
+    return scopedPatterns.filter(p => {
       if (filters.theme && p.theme !== filters.theme) return false;
       if (filters.difficulty && p.difficulty !== filters.difficulty) return false;
       if (filters.status && p.status !== filters.status) return false;
@@ -82,21 +121,24 @@ export default function App() {
       }
       return true;
     });
-  }, [patterns, filters]);
+  }, [scopedPatterns, filters]);
 
   const themes = useMemo(() => {
     const set = new Set<string>();
-    patterns.forEach(p => p.theme && set.add(p.theme));
+    scopedPatterns.forEach(p => p.theme && set.add(p.theme));
     return Array.from(set);
-  }, [patterns]);
+  }, [scopedPatterns]);
 
   const owners = useMemo(() => {
     const set = new Set<string>();
-    patterns.forEach(p => p.owner && set.add(p.owner));
+    scopedPatterns.forEach(p => p.owner && set.add(p.owner));
     return Array.from(set);
-  }, [patterns]);
+  }, [scopedPatterns]);
 
-  const issues: CheckIssue[] = useMemo(() => runChecks(patterns, settings), [patterns, settings]);
+  const issues: CheckIssue[] = useMemo(
+    () => runChecks(scopedPatterns, settings),
+    [scopedPatterns, settings]
+  );
 
   const selectedPattern = useMemo(() => {
     if (!selectedId) return null;
@@ -153,7 +195,7 @@ export default function App() {
   }, [patterns, addPattern]);
 
   const removePattern = useCallback(async (id: string) => {
-    if (!confirm('确定删除该图样吗？此操作不可恢复。')) return;
+    if (!confirm('确定删除该图样吗？方案中若引用此图样会保留其快照。')) return;
     await deletePattern(id);
     setPatterns(prev => prev.filter(p => p.id !== id).map((p, i) => ({ ...p, order: i + 1 })));
     setSelectedIds(prev => {
@@ -228,7 +270,7 @@ export default function App() {
   }, [patterns, selectedIds]);
 
   const batchDelete = useCallback(async () => {
-    if (!confirm(`确定删除已选中的 ${selectedIds.size} 个图样吗？此操作不可恢复。`)) return;
+    if (!confirm(`确定删除已选中的 ${selectedIds.size} 个图样吗？方案中的引用将保留快照。`)) return;
     const ids = Array.from(selectedIds);
     await deletePatternsBulk(ids);
     const remaining = patterns.filter(p => !ids.includes(p.id)).map((p, i) => ({ ...p, order: i + 1 }));
@@ -309,40 +351,48 @@ export default function App() {
         ],
         notes: '', createdAt: now, updatedAt: now,
       },
-      {
-        id: `demo_5_${now}`, order: maxOrder + 4,
-        name: '连年有余', theme: '新春', foldingMethod: '对折',
-        knifeTechniques: '鱼鳞用半圆形排列，水纹用波浪线',
-        estimatedDuration: 50, suitablePeople: '2人', riskWarnings: '细小鱼鳞处需特别小心',
-        backupPlan: '', status: '暂缓', difficulty: '中级', owner: '王老师',
-        steps: [],
-        materials: [
-          { id: `q1_${now}`, name: '红色宣纸', quantity: '2张' },
-          { id: `q2_${now}`, name: '刻刀套装', quantity: '1套' },
-          { id: `q3_${now}`, name: '镊子', quantity: '1个', note: '剔除碎纸片' },
-        ],
-        notes: '莲花和鲤鱼组合', createdAt: now, updatedAt: now,
-      },
-      {
-        id: `demo_4_${now}`, order: maxOrder + 5,
-        name: '生肖老虎', theme: '生肖', foldingMethod: '对称折',
-        knifeTechniques: '毛发处使用短碎线阴刻，眼睛保留小圆点',
-        estimatedDuration: 90, suitablePeople: '3人', riskWarnings: '细节较多，建议准备放大镜',
-        backupPlan: '简化为剪影风格', status: '需协助', difficulty: '高级', owner: '王老师',
-        steps: [],
-        materials: [
-          { id: `r1_${now}`, name: '双面红宣', quantity: '3张' },
-          { id: `r2_${now}`, name: '精细刻刀', quantity: '2把' },
-          { id: `r3_${now}`, name: '放大镜', quantity: '1个' },
-          { id: `r4_${now}`, name: 'LED灯台', quantity: '1台', note: '看稿辅助' },
-        ],
-        notes: '适合作为进阶练习', createdAt: now, updatedAt: now,
-      },
     ];
     setPatterns(prev => [...prev, ...demo].sort((a, b) => a.order - b.order));
     await savePatternsBulk(demo);
     setSelectedId(demo[0].id);
   }, [patterns]);
+
+  const persistPlan = useCallback(async (plan: PracticePlan) => {
+    setPlans(prev => {
+      const next = prev.map(p => (p.id === plan.id ? plan : p));
+      if (!prev.find(p => p.id === plan.id)) {
+        next.push(plan);
+      }
+      return next.sort((a, b) => a.order - b.order);
+    });
+    await savePlan(plan);
+  }, []);
+
+  const addPlan = useCallback(async () => {
+    const maxOrder = plans.reduce((m, p) => Math.max(m, p.order), 0);
+    const newPlan = createEmptyPlan(maxOrder + 1);
+    newPlan.name = `新方案 ${maxOrder + 1}`;
+    await persistPlan(newPlan);
+    setSelectedPlanId(newPlan.id);
+    setShowPlanEditor(true);
+    setShowPlanPanel(false);
+  }, [plans, persistPlan]);
+
+  const removePlan = useCallback(async (id: string) => {
+    if (!confirm('确定删除此方案吗？仅删除方案组合，不会删除关联的图样。')) return;
+    await deletePlan(id);
+    setPlans(prev => prev.filter(p => p.id !== id).map((p, i) => ({ ...p, order: i + 1 })));
+    if (selectedPlanId === id) {
+      setSelectedPlanId(null);
+    }
+    const reordered = plans.filter(p => p.id !== id).map((p, i) => ({ ...p, order: i + 1 }));
+    if (reordered.length > 0) await savePlansBulk(reordered);
+  }, [plans, selectedPlanId]);
+
+  const handleSelectPlan = useCallback((id: string | null) => {
+    setSelectedPlanId(id);
+    setSelectedIds(new Set());
+  }, []);
 
   if (loading) {
     return (
@@ -355,6 +405,10 @@ export default function App() {
     );
   }
 
+  const scopeLabel = currentPlan
+    ? `方案：${currentPlan.name || '未命名方案'}`
+    : '全部图样';
+
   return (
     <div className="app">
       <header className="app-header">
@@ -362,10 +416,21 @@ export default function App() {
           <Scissors size={24} className="title-icon" />
           <div>
             <h1>剪纸图样练习管理</h1>
-            <p className="subtitle">难度安排 · 材料核对 · 进度提示</p>
+            <p className="subtitle">
+              难度安排 · 材料核对 · 进度提示
+              {currentPlan && (
+                <span className="scope-indicator">
+                  · {scopeLabel}
+                </span>
+              )}
+            </p>
           </div>
         </div>
         <div className="app-actions">
+          <button className="btn btn-secondary" onClick={() => setShowPlanPanel(true)}>
+            <FolderOpen size={16} /> 方案
+            {currentPlan && <span className="btn-count">{currentPlan.items.length}</span>}
+          </button>
           <button className="btn" onClick={() => addPattern()}>
             <Plus size={16} /> 新增图样
           </button>
@@ -383,6 +448,34 @@ export default function App() {
           </button>
         </div>
       </header>
+
+      {currentPlan && (
+        <div className="scope-bar">
+          <div className="scope-bar-left">
+            <FolderOpen size={14} />
+            <span className="scope-bar-label">当前方案：</span>
+            <span className="scope-bar-name">{currentPlan.name || '未命名方案'}</span>
+            {currentPlan.scenario && (
+              <span className="scope-bar-tag">场景：{currentPlan.scenario}</span>
+            )}
+            {currentPlan.estimatedDuration && (
+              <span className="scope-bar-tag">时长：{currentPlan.estimatedDuration}</span>
+            )}
+            {currentPlan.owner && (
+              <span className="scope-bar-tag">负责人：{currentPlan.owner}</span>
+            )}
+            <span className="scope-bar-tag">{currentPlan.items.length} 项内容</span>
+          </div>
+          <div className="scope-bar-right">
+            <button className="btn btn-small" onClick={() => setShowPlanEditor(true)}>
+              <Edit3 size={12} /> 编辑方案
+            </button>
+            <button className="btn btn-small btn-ghost" onClick={() => setSelectedPlanId(null)}>
+              退出方案
+            </button>
+          </div>
+        </div>
+      )}
 
       <FilterBar filters={filters} onChange={setFilters} themes={themes} owners={owners} />
 
@@ -415,7 +508,15 @@ export default function App() {
           />
         </div>
         <div className="main-right">
-          {selectedPattern ? (
+          {showPlanEditor ? (
+            <PlanEditor
+              plan={currentPlan}
+              allPatterns={patterns}
+              onChange={persistPlan}
+              onClose={() => setShowPlanEditor(false)}
+              onCreateNew={addPlan}
+            />
+          ) : selectedPattern ? (
             <PatternEditor
               pattern={selectedPattern}
               onChange={persistPattern}
@@ -444,7 +545,11 @@ export default function App() {
       )}
 
       {showPreview && (
-        <PracticePreview patterns={filteredPatterns} onClose={() => setShowPreview(false)} />
+        <PracticePreview
+          patterns={filteredPatterns}
+          plan={currentPlan || undefined}
+          onClose={() => setShowPreview(false)}
+        />
       )}
 
       {showSettings && (
@@ -453,6 +558,22 @@ export default function App() {
           onChange={setSettings}
           onClose={() => setShowSettings(false)}
         />
+      )}
+
+      {showPlanPanel && (
+        <div className="modal-overlay" onClick={() => setShowPlanPanel(false)}>
+          <div className="plan-panel-modal" onClick={e => e.stopPropagation()}>
+            <PlanList
+              plans={plans}
+              selectedPlanId={selectedPlanId}
+              allViewActive={selectedPlanId === null}
+              onSelectPlan={(id) => { handleSelectPlan(id); setShowPlanPanel(false); }}
+              onAddPlan={() => { addPlan(); }}
+              onDeletePlan={removePlan}
+              onClose={() => setShowPlanPanel(false)}
+            />
+          </div>
+        </div>
       )}
     </div>
   );
