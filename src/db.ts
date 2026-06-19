@@ -1,8 +1,8 @@
 import { openDB, IDBPDatabase } from 'idb';
-import { PaperPattern, FilterState, AppSettings, PracticePlan } from './types';
+import { PaperPattern, FilterState, AppSettings, PracticePlan, ReviewRecord } from './types';
 
 const DB_NAME = 'paper-cutting-db';
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 
 interface DBSchema {
   patterns: {
@@ -26,6 +26,11 @@ interface DBSchema {
   uiState: {
     key: string;
     value: Record<string, unknown>;
+  };
+  reviews: {
+    key: string;
+    value: ReviewRecord;
+    indexes: { 'by-createdAt': number; 'by-planId': string };
   };
 }
 
@@ -51,6 +56,11 @@ function getDB(): Promise<IDBPDatabase<DBSchema>> {
         if (!db.objectStoreNames.contains('plans')) {
           const store = db.createObjectStore('plans', { keyPath: 'id' });
           store.createIndex('by-order', 'order');
+        }
+        if (!db.objectStoreNames.contains('reviews')) {
+          const store = db.createObjectStore('reviews', { keyPath: 'id' });
+          store.createIndex('by-createdAt', 'createdAt');
+          store.createIndex('by-planId', 'planId');
         }
       },
     });
@@ -180,4 +190,32 @@ export async function loadUIState(): Promise<Record<string, unknown>> {
   if (!result) return {};
   const { id, ...rest } = result;
   return rest;
+}
+
+export async function getAllReviews(): Promise<ReviewRecord[]> {
+  const db = await getDB();
+  const items = await db.getAllFromIndex('reviews', 'by-createdAt');
+  return items.sort((a, b) => b.createdAt - a.createdAt);
+}
+
+export async function getReviewsByPlanId(planId: string): Promise<ReviewRecord[]> {
+  const db = await getDB();
+  const items = await db.getAllFromIndex('reviews', 'by-planId', planId);
+  return items.sort((a, b) => b.createdAt - a.createdAt);
+}
+
+export async function getReview(id: string): Promise<ReviewRecord | undefined> {
+  const db = await getDB();
+  return await db.get('reviews', id);
+}
+
+export async function saveReview(review: ReviewRecord): Promise<void> {
+  const db = await getDB();
+  review.updatedAt = Date.now();
+  await db.put('reviews', review);
+}
+
+export async function deleteReview(id: string): Promise<void> {
+  const db = await getDB();
+  await db.delete('reviews', id);
 }

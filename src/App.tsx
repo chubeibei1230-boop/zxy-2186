@@ -1,14 +1,16 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   PaperPattern, FilterState, AppSettings, createEmptyPattern, PracticeStatus, CheckIssue,
-  PracticePlan, createEmptyPlan,
+  PracticePlan, createEmptyPlan, PracticeExecution, createExecution, ReviewRecord, ReviewSummary,
 } from './types';
 import {
   getAllPatterns, savePattern, savePatternsBulk, deletePattern, deletePatternsBulk,
   saveFilters, loadFilters, saveSettings, loadSettings, saveUIState, loadUIState,
   getAllPlans, savePlan, savePlansBulk, deletePlan,
+  getAllReviews, saveReview, deleteReview,
 } from './db';
 import { runChecks } from './checks';
+import { generateReviewSummary } from './reviewUtils';
 import FilterBar from './components/FilterBar';
 import PatternList from './components/PatternList';
 import PatternEditor from './components/PatternEditor';
@@ -18,9 +20,12 @@ import PracticePreview from './components/PracticePreview';
 import SettingsPanel from './components/SettingsPanel';
 import PlanList from './components/PlanList';
 import PlanEditor from './components/PlanEditor';
+import PracticeExecutionComponent from './components/PracticeExecution';
+import ReviewDetail from './components/ReviewDetail';
+import ReviewList from './components/ReviewList';
 import {
   Plus, Play, Settings as SettingsIcon, Scissors, RotateCcw, ClipboardCopy,
-  FolderOpen, X, Edit3,
+  FolderOpen, X, Edit3, FileText, PlayCircle,
 } from 'lucide-react';
 
 const DEFAULT_FILTERS: FilterState = {
@@ -47,9 +52,11 @@ function resolvePlanPatterns(plan: PracticePlan, allPatterns: PaperPattern[]): P
 export default function App() {
   const [patterns, setPatterns] = useState<PaperPattern[]>([]);
   const [plans, setPlans] = useState<PracticePlan[]>([]);
+  const [reviews, setReviews] = useState<ReviewRecord[]>([]);
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
   const [showPlanPanel, setShowPlanPanel] = useState(false);
   const [showPlanEditor, setShowPlanEditor] = useState(false);
+  const [showReviewList, setShowReviewList] = useState(false);
   const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS);
   const [settings, setSettings] = useState<AppSettings>({ totalDurationLimit: 180, maxItemsPerOwner: 5 });
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -58,18 +65,25 @@ export default function App() {
   const [showPreview, setShowPreview] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [currentExecution, setCurrentExecution] = useState<PracticeExecution | null>(null);
+  const [showExecution, setShowExecution] = useState(false);
+  const [currentReviewSummary, setCurrentReviewSummary] = useState<ReviewSummary | null>(null);
+  const [showReviewDetail, setShowReviewDetail] = useState(false);
+  const [viewingReview, setViewingReview] = useState<ReviewRecord | null>(null);
 
   useEffect(() => {
     const init = async () => {
-      const [loadedPatterns, loadedPlans, loadedFilters, loadedSettings, uiState] = await Promise.all([
+      const [loadedPatterns, loadedPlans, loadedReviews, loadedFilters, loadedSettings, uiState] = await Promise.all([
         getAllPatterns(),
         getAllPlans(),
+        getAllReviews(),
         loadFilters(),
         loadSettings(),
         loadUIState(),
       ]);
       setPatterns(loadedPatterns);
       setPlans(loadedPlans);
+      setReviews(loadedReviews);
       if (loadedFilters) setFilters(loadedFilters);
       setSettings(loadedSettings);
 
@@ -451,6 +465,60 @@ export default function App() {
     }
   }, [plans, patterns]);
 
+  const startExecution = useCallback(() => {
+    if (!currentPlan) return;
+    if (currentPlan.items.length === 0) {
+      alert('当前方案没有内容，请先添加图样。');
+      return;
+    }
+    const planPatterns = resolvePlanPatterns(currentPlan, patterns);
+    const execution = createExecution(currentPlan, planPatterns);
+    setCurrentExecution(execution);
+    setShowExecution(true);
+  }, [currentPlan, patterns]);
+
+  const handleExecutionUpdate = useCallback((execution: PracticeExecution) => {
+    setCurrentExecution(execution);
+  }, []);
+
+  const handleExecutionComplete = useCallback((execution: PracticeExecution) => {
+    setCurrentExecution(execution);
+    setShowExecution(false);
+    const summary = generateReviewSummary(execution);
+    setCurrentReviewSummary(summary);
+    setViewingReview(null);
+    setShowReviewDetail(true);
+  }, []);
+
+  const handleSaveReview = useCallback(async (record: ReviewRecord) => {
+    await saveReview(record);
+    const updated = await getAllReviews();
+    setReviews(updated);
+    setShowReviewDetail(false);
+    setCurrentReviewSummary(null);
+    setViewingReview(null);
+    setCurrentExecution(null);
+    alert('复盘记录已保存！');
+  }, []);
+
+  const handleViewReview = useCallback((review: ReviewRecord) => {
+    setViewingReview(review);
+    setCurrentReviewSummary(review.summary);
+    setShowReviewDetail(true);
+    setShowReviewList(false);
+  }, []);
+
+  const handleDeleteReview = useCallback(async (id: string) => {
+    await deleteReview(id);
+    const updated = await getAllReviews();
+    setReviews(updated);
+  }, []);
+
+  const refreshReviews = useCallback(async () => {
+    const updated = await getAllReviews();
+    setReviews(updated);
+  }, []);
+
   if (loading) {
     return (
       <div className="loading-screen">
@@ -488,6 +556,10 @@ export default function App() {
             <FolderOpen size={16} /> 方案
             {currentPlan && <span className="btn-count">{currentPlan.items.length}</span>}
           </button>
+          <button className="btn btn-secondary" onClick={() => { setShowReviewList(true); refreshReviews(); }}>
+            <FileText size={16} /> 复盘记录
+            {reviews.length > 0 && <span className="btn-count">{reviews.length}</span>}
+          </button>
           <button className="btn" onClick={() => addPattern()}>
             <Plus size={16} /> 新增图样
           </button>
@@ -497,6 +569,11 @@ export default function App() {
           <button className="btn btn-secondary" onClick={() => setShowPreview(true)}>
             <Play size={16} /> 练习顺序预览
           </button>
+          {currentPlan && currentPlan.items.length > 0 && (
+            <button className="btn btn-primary" onClick={startExecution}>
+              <PlayCircle size={16} /> 开始执行
+            </button>
+          )}
           <button className="btn btn-ghost" onClick={handleResetDemo}>
             <RotateCcw size={16} /> 加载示例
           </button>
@@ -524,6 +601,9 @@ export default function App() {
             <span className="scope-bar-tag">{currentPlan.items.length} 项内容</span>
           </div>
           <div className="scope-bar-right">
+            <button className="btn btn-small btn-primary" onClick={startExecution} disabled={currentPlan.items.length === 0}>
+              <PlayCircle size={12} /> 开始执行
+            </button>
             <button className="btn btn-small" onClick={() => setShowPlanEditor(true)}>
               <Edit3 size={12} /> 编辑方案
             </button>
@@ -632,6 +712,44 @@ export default function App() {
             />
           </div>
         </div>
+      )}
+
+      {showExecution && currentExecution && (
+        <PracticeExecutionComponent
+          execution={currentExecution}
+          onUpdate={handleExecutionUpdate}
+          onComplete={handleExecutionComplete}
+          onClose={() => {
+            if (confirm('确定退出执行模式吗？当前进度将丢失。')) {
+              setShowExecution(false);
+              setCurrentExecution(null);
+            }
+          }}
+        />
+      )}
+
+      {showReviewDetail && currentReviewSummary && currentExecution && (
+        <ReviewDetail
+          summary={currentReviewSummary}
+          execution={viewingReview ? viewingReview.execution : currentExecution}
+          existingRecord={viewingReview || undefined}
+          onSave={handleSaveReview}
+          onClose={() => {
+            setShowReviewDetail(false);
+            setCurrentReviewSummary(null);
+            setViewingReview(null);
+            setCurrentExecution(null);
+          }}
+        />
+      )}
+
+      {showReviewList && (
+        <ReviewList
+          reviews={reviews}
+          onView={handleViewReview}
+          onDelete={handleDeleteReview}
+          onClose={() => setShowReviewList(false)}
+        />
       )}
     </div>
   );

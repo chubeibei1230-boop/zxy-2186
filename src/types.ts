@@ -131,3 +131,121 @@ export function createEmptyPlan(order: number): PracticePlan {
     updatedAt: now,
   };
 }
+
+export interface ExecutionItemRecord {
+  patternId: string;
+  patternSnapshot: PaperPattern;
+  actualStatus: PracticeStatus;
+  actualDuration: number;
+  issuesOnSite: string;
+  completed: boolean;
+  needAssistance: boolean;
+  usedBackupPlan: boolean;
+  riskReminded: boolean;
+  startedAt: number;
+  endedAt?: number;
+}
+
+export interface PracticeExecution {
+  id: string;
+  planId: string;
+  planSnapshot: PracticePlan;
+  currentIndex: number;
+  items: ExecutionItemRecord[];
+  status: 'ready' | 'running' | 'paused' | 'completed';
+  startedAt: number;
+  endedAt?: number;
+  pausedAt?: number;
+  totalPausedDuration: number;
+}
+
+export interface ReviewSummary {
+  planDuration: number;
+  actualDuration: number;
+  durationDifference: number;
+  incompletePatterns: PaperPattern[];
+  assistancePatterns: PaperPattern[];
+  missedRisks: { pattern: PaperPattern; warning: string }[];
+  usedBackupPatterns: PaperPattern[];
+  ownerStats: Record<string, { total: number; completed: number; needAssistance: number }>;
+  materialsReview: {
+    prepared: { name: string; quantity: string; note?: string; pattern: string }[];
+    missing: { name: string; quantity: string; note?: string; pattern: string }[];
+  };
+  overallNotes: string;
+}
+
+export interface ReviewRecord {
+  id: string;
+  planId: string;
+  planName: string;
+  executionId: string;
+  summary: ReviewSummary;
+  execution: PracticeExecution;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export function createExecution(plan: PracticePlan, patterns: PaperPattern[]): PracticeExecution {
+  const now = Date.now();
+  const items: ExecutionItemRecord[] = plan.items.map(item => {
+    const pattern = patterns.find(p => p.id === item.patternId) || item.snapshot!;
+    return {
+      patternId: item.patternId,
+      patternSnapshot: { ...pattern },
+      actualStatus: pattern.status,
+      actualDuration: 0,
+      issuesOnSite: '',
+      completed: false,
+      needAssistance: false,
+      usedBackupPlan: false,
+      riskReminded: false,
+      startedAt: 0,
+    };
+  });
+
+  return {
+    id: `exec_${now}_${Math.random().toString(36).slice(2, 9)}`,
+    planId: plan.id,
+    planSnapshot: { ...plan },
+    currentIndex: 0,
+    items,
+    status: 'ready',
+    startedAt: 0,
+    totalPausedDuration: 0,
+  };
+}
+
+export function createEmptyReviewRecord(): ReviewRecord {
+  const now = Date.now();
+  return {
+    id: `review_${now}_${Math.random().toString(36).slice(2, 9)}`,
+    planId: '',
+    planName: '',
+    executionId: '',
+    summary: {
+      planDuration: 0,
+      actualDuration: 0,
+      durationDifference: 0,
+      incompletePatterns: [],
+      assistancePatterns: [],
+      missedRisks: [],
+      usedBackupPatterns: [],
+      ownerStats: {},
+      materialsReview: { prepared: [], missing: [] },
+      overallNotes: '',
+    },
+    execution: {
+      id: '',
+      planId: '',
+      planSnapshot: createEmptyPlan(0),
+      currentIndex: 0,
+      items: [],
+      status: 'ready',
+      startedAt: 0,
+      totalPausedDuration: 0,
+    },
+    createdAt: now,
+    updatedAt: now,
+  };
+}
