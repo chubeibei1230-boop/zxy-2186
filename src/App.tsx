@@ -142,8 +142,31 @@ export default function App() {
 
   const selectedPattern = useMemo(() => {
     if (!selectedId) return null;
-    return patterns.find(p => p.id === selectedId) || null;
-  }, [patterns, selectedId]);
+    return scopedPatterns.find(p => p.id === selectedId) || null;
+  }, [scopedPatterns, selectedId]);
+
+  const removePatternFromPlan = useCallback(async (patternId: string) => {
+    if (!currentPlan) return;
+    if (!confirm('确定从当前方案中移除此图样吗？（不会删除图样库中的原始内容）')) return;
+    const updated = {
+      ...currentPlan,
+      items: currentPlan.items.filter(i => i.patternId !== patternId),
+      updatedAt: Date.now(),
+    };
+    setPlans(prev => prev.map(p => (p.id === updated.id ? updated : p)));
+    await savePlan(updated);
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      next.delete(patternId);
+      return next;
+    });
+    if (selectedId === patternId) {
+      const remaining = updated.items
+        .map(i => patterns.find(p => p.id === i.patternId) || i.snapshot)
+        .filter(Boolean) as PaperPattern[];
+      setSelectedId(remaining.length > 0 ? remaining[0].id : null);
+    }
+  }, [currentPlan, selectedId, patterns]);
 
   const persistPattern = useCallback(async (pattern: PaperPattern) => {
     setPatterns(prev => {
@@ -182,8 +205,26 @@ export default function App() {
       newPattern = createEmptyPattern(maxOrder + 1);
     }
     await persistPattern(newPattern);
+
+    if (currentPlan) {
+      const updatedPlan = {
+        ...currentPlan,
+        items: [
+          ...currentPlan.items,
+          {
+            patternId: newPattern.id,
+            snapshot: { ...newPattern },
+            addedAt: Date.now(),
+          },
+        ],
+        updatedAt: Date.now(),
+      };
+      setPlans(prev => prev.map(p => (p.id === updatedPlan.id ? updatedPlan : p)));
+      await savePlan(updatedPlan);
+    }
+
     setSelectedId(newPattern.id);
-  }, [patterns, persistPattern]);
+  }, [patterns, persistPattern, currentPlan]);
 
   const copyLastPattern = useCallback(() => {
     if (patterns.length === 0) {
@@ -392,7 +433,23 @@ export default function App() {
   const handleSelectPlan = useCallback((id: string | null) => {
     setSelectedPlanId(id);
     setSelectedIds(new Set());
-  }, []);
+    setShowPlanEditor(false);
+    if (id) {
+      const plan = plans.find(p => p.id === id);
+      if (plan && plan.items.length > 0) {
+        const firstResolved = resolvePlanPatterns(plan, patterns);
+        if (firstResolved.length > 0) {
+          setSelectedId(firstResolved[0].id);
+          return;
+        }
+      }
+    }
+    if (patterns.length > 0) {
+      setSelectedId(patterns[0].id);
+    } else {
+      setSelectedId(null);
+    }
+  }, [plans, patterns]);
 
   if (loading) {
     return (
@@ -501,10 +558,11 @@ export default function App() {
             onSelect={setSelectedId}
             onToggleSelect={toggleSelect}
             onToggleSelectAll={toggleSelectAll}
-            onDelete={removePattern}
+            onDelete={currentPlan ? removePatternFromPlan : removePattern}
             onCopy={addPattern}
             onReorder={handleReorder}
             onChangeStatus={handleStatusChange}
+            inPlanScope={!!currentPlan}
           />
         </div>
         <div className="main-right">

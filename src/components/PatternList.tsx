@@ -28,10 +28,11 @@ interface PatternListProps {
   onCopy: (pattern: PaperPattern) => void;
   onReorder: (ids: string[]) => void;
   onChangeStatus: (id: string, status: PracticeStatus) => void;
+  inPlanScope?: boolean;
 }
 
 export default function PatternList(props: PatternListProps) {
-  const { patterns, selectedIds, selectedId, onSelect, onToggleSelect, onToggleSelectAll, onDelete, onCopy, onReorder, onChangeStatus } = props;
+  const { patterns, selectedIds, selectedId, onSelect, onToggleSelect, onToggleSelectAll, onDelete, onCopy, onReorder, onChangeStatus, inPlanScope } = props;
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -90,6 +91,7 @@ export default function PatternList(props: PatternListProps) {
                   onDelete={onDelete}
                   onCopy={onCopy}
                   onChangeStatus={onChangeStatus}
+                  inPlanScope={inPlanScope}
                 />
               ))
             )}
@@ -110,10 +112,11 @@ interface SortableItemProps {
   onDelete: (id: string) => void;
   onCopy: (pattern: PaperPattern) => void;
   onChangeStatus: (id: string, status: PracticeStatus) => void;
+  inPlanScope?: boolean;
 }
 
 function SortableItem(props: SortableItemProps) {
-  const { pattern, index, isSelected, isActive, onSelect, onToggleSelect, onDelete, onCopy, onChangeStatus } = props;
+  const { pattern, index, isSelected, isActive, onSelect, onToggleSelect, onDelete, onCopy, onChangeStatus, inPlanScope } = props;
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: pattern.id });
 
   const style: React.CSSProperties = {
@@ -126,6 +129,7 @@ function SortableItem(props: SortableItemProps) {
     <div
       ref={setNodeRef}
       style={style}
+      data-id={pattern.id}
       className={`pattern-item ${isActive ? 'active' : ''}`}
       onClick={() => onSelect(pattern.id)}
     >
@@ -179,7 +183,11 @@ function SortableItem(props: SortableItemProps) {
         <button className="icon-btn" title="复制配置" onClick={() => onCopy(pattern)}>
           <Copy size={16} />
         </button>
-        <button className="icon-btn danger" title="删除" onClick={() => onDelete(pattern.id)}>
+        <button
+          className={`icon-btn ${inPlanScope ? '' : 'danger'}`}
+          title={inPlanScope ? '从方案中移除' : '删除（从图样库中永久删除）'}
+          onClick={() => onDelete(pattern.id)}
+        >
           <Trash2 size={16} />
         </button>
       </div>
