@@ -96,7 +96,7 @@ export default function App() {
     return Array.from(set);
   }, [patterns]);
 
-  const issues: CheckIssue[] = useMemo(() => runChecks(filteredPatterns, settings), [filteredPatterns, settings]);
+  const issues: CheckIssue[] = useMemo(() => runChecks(patterns, settings), [patterns, settings]);
 
   const selectedPattern = useMemo(() => {
     if (!selectedId) return null;
@@ -128,6 +128,10 @@ export default function App() {
         steps: sourcePattern.steps.map(s => ({
           ...s,
           id: `step_${now}_${Math.random().toString(36).slice(2, 7)}`,
+        })),
+        materials: sourcePattern.materials.map(m => ({
+          ...m,
+          id: `mat_${now}_${Math.random().toString(36).slice(2, 7)}`,
         })),
         createdAt: now,
         updatedAt: now,
@@ -165,11 +169,26 @@ export default function App() {
     if (reordered.length > 0) await savePatternsBulk(reordered);
   }, [patterns, selectedId]);
 
-  const handleReorder = useCallback(async (ids: string[]) => {
-    const idToOrder: Record<string, number> = {};
-    ids.forEach((id, idx) => { idToOrder[id] = idx + 1; });
-    const updated = patterns.map(p => ({ ...p, order: idToOrder[p.id] ?? p.order }));
-    updated.sort((a, b) => a.order - b.order);
+  const handleReorder = useCallback(async (filteredIds: string[]) => {
+    const allSorted = [...patterns].sort((a, b) => a.order - b.order);
+    const filteredSet = new Set(filteredIds);
+    const hiddenItems = allSorted.filter(p => !filteredSet.has(p.id));
+
+    let filteredIdx = 0;
+    let hiddenIdx = 0;
+    const result: PaperPattern[] = [];
+
+    for (const original of allSorted) {
+      if (filteredSet.has(original.id)) {
+        const nextId = filteredIds[filteredIdx++];
+        const found = allSorted.find(p => p.id === nextId)!;
+        result.push(found);
+      } else {
+        result.push(hiddenItems[hiddenIdx++]);
+      }
+    }
+
+    const updated = result.map((p, i) => ({ ...p, order: i + 1 }));
     setPatterns(updated);
     await savePatternsBulk(updated);
   }, [patterns]);
@@ -246,6 +265,13 @@ export default function App() {
           { id: `s3_${now}`, title: '画稿', description: '用铅笔描出喜字轮廓，注意对称' },
           { id: `s4_${now}`, title: '刻制', description: '先刻内部再刻外部，保持线条流畅' },
         ],
+        materials: [
+          { id: `m1_${now}`, name: '红色宣纸', quantity: '1张', note: '20×20cm' },
+          { id: `m2_${now}`, name: '剪纸刻刀', quantity: '1把' },
+          { id: `m3_${now}`, name: '切割垫板', quantity: '1块' },
+          { id: `m4_${now}`, name: '铅笔', quantity: '1支' },
+          { id: `m5_${now}`, name: '橡皮', quantity: '1块' },
+        ],
         notes: '建议使用红宣，效果最佳', createdAt: now, updatedAt: now,
       },
       {
@@ -258,6 +284,11 @@ export default function App() {
           { id: `t1_${now}`, title: '折叠', description: '圆形纸张进行五角折叠' },
           { id: `t2_${now}`, title: '构图', description: '画出牡丹花瓣和叶子分布' },
           { id: `t3_${now}`, title: '细化', description: '添加叶脉和纹理细节' },
+        ],
+        materials: [
+          { id: `n1_${now}`, name: '彩色宣纸', quantity: '3张', note: '圆形直径25cm' },
+          { id: `n2_${now}`, name: '剪刀', quantity: '2把' },
+          { id: `n3_${now}`, name: '圆规', quantity: '1个', note: '画圆形辅助线' },
         ],
         notes: '可配合染色工艺', createdAt: now, updatedAt: now,
       },
@@ -272,25 +303,40 @@ export default function App() {
           { id: `u2_${now}`, title: '打印或描出福字', description: '按对角线方向描出福字轮廓' },
           { id: `u3_${now}`, title: '沿边剪裁', description: '使用剪刀沿线条仔细裁剪' },
         ],
+        materials: [
+          { id: `p1_${now}`, name: '红宣斗方', quantity: '2张', note: '34×34cm' },
+          { id: `p2_${now}`, name: '剪刀', quantity: '1把' },
+        ],
         notes: '', createdAt: now, updatedAt: now,
       },
       {
-        id: `demo_4_${now}`, order: maxOrder + 4,
-        name: '生肖老虎', theme: '生肖', foldingMethod: '对称折',
-        knifeTechniques: '毛发处使用短碎线阴刻，眼睛保留小圆点',
-        estimatedDuration: 90, suitablePeople: '3人', riskWarnings: '细节较多，建议准备放大镜',
-        backupPlan: '简化为剪影风格', status: '需协助', difficulty: '高级', owner: '王老师',
-        steps: [],
-        notes: '适合作为进阶练习', createdAt: now, updatedAt: now,
-      },
-      {
-        id: `demo_5_${now}`, order: maxOrder + 5,
+        id: `demo_5_${now}`, order: maxOrder + 4,
         name: '连年有余', theme: '新春', foldingMethod: '对折',
         knifeTechniques: '鱼鳞用半圆形排列，水纹用波浪线',
         estimatedDuration: 50, suitablePeople: '2人', riskWarnings: '细小鱼鳞处需特别小心',
         backupPlan: '', status: '暂缓', difficulty: '中级', owner: '王老师',
         steps: [],
+        materials: [
+          { id: `q1_${now}`, name: '红色宣纸', quantity: '2张' },
+          { id: `q2_${now}`, name: '刻刀套装', quantity: '1套' },
+          { id: `q3_${now}`, name: '镊子', quantity: '1个', note: '剔除碎纸片' },
+        ],
         notes: '莲花和鲤鱼组合', createdAt: now, updatedAt: now,
+      },
+      {
+        id: `demo_4_${now}`, order: maxOrder + 5,
+        name: '生肖老虎', theme: '生肖', foldingMethod: '对称折',
+        knifeTechniques: '毛发处使用短碎线阴刻，眼睛保留小圆点',
+        estimatedDuration: 90, suitablePeople: '3人', riskWarnings: '细节较多，建议准备放大镜',
+        backupPlan: '简化为剪影风格', status: '需协助', difficulty: '高级', owner: '王老师',
+        steps: [],
+        materials: [
+          { id: `r1_${now}`, name: '双面红宣', quantity: '3张' },
+          { id: `r2_${now}`, name: '精细刻刀', quantity: '2把' },
+          { id: `r3_${now}`, name: '放大镜', quantity: '1个' },
+          { id: `r4_${now}`, name: 'LED灯台', quantity: '1台', note: '看稿辅助' },
+        ],
+        notes: '适合作为进阶练习', createdAt: now, updatedAt: now,
       },
     ];
     setPatterns(prev => [...prev, ...demo].sort((a, b) => a.order - b.order));

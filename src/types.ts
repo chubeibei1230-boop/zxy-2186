@@ -8,6 +8,13 @@ export interface PatternStep {
   description: string;
 }
 
+export interface MaterialItem {
+  id: string;
+  name: string;
+  quantity: string;
+  note?: string;
+}
+
 export interface PaperPattern {
   id: string;
   order: number;
@@ -23,6 +30,7 @@ export interface PaperPattern {
   difficulty: Difficulty;
   owner: string;
   steps: PatternStep[];
+  materials: MaterialItem[];
   notes: string;
   createdAt: number;
   updatedAt: number;
@@ -84,6 +92,7 @@ export function createEmptyPattern(order: number): PaperPattern {
     difficulty: '入门',
     owner: '',
     steps: [],
+    materials: [],
     notes: '',
     createdAt: now,
     updatedAt: now,

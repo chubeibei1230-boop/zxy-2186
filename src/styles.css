@@ -613,6 +613,97 @@ input, select, textarea {
   box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.1);
 }
 
+.materials-list { display: flex; flex-direction: column; gap: 8px; }
+.material-item {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 10px;
+  padding: 10px;
+  background: linear-gradient(90deg, #eff6ff33, #fff7ed33);
+  border-radius: var(--radius-sm);
+  border: 1px solid #e0e7ff;
+  align-items: start;
+}
+.material-index {
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+.material-fields { display: grid; grid-template-columns: 1.4fr 0.8fr 1fr; gap: 6px; min-width: 0; }
+.material-name, .material-qty, .material-note {
+  padding: 6px 8px;
+  border: 1px solid var(--gray-300);
+  border-radius: var(--radius-sm);
+  outline: none;
+  background: white;
+  font-size: 13px;
+}
+.material-name:focus, .material-qty:focus, .material-note:focus {
+  border-color: var(--info);
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.12);
+}
+@media (max-width: 520px) {
+  .material-fields { grid-template-columns: 1fr; }
+}
+
+.tag-materials {
+  background: linear-gradient(90deg, #e0e7ff, #ede9fe);
+  color: #4338ca;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.material-check-list {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border: 1px solid #e0e7ff;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+.material-check-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  cursor: pointer;
+  transition: all 0.15s;
+  background: white;
+  border-bottom: 1px solid #f0f0f0;
+  font-size: 13px;
+}
+.material-check-row:last-child { border-bottom: none; }
+.material-check-row:hover { background: #f5f3ff; }
+.material-check-row.mat-checked {
+  background: #f0fdf4;
+}
+.material-check-row.mat-checked .mat-check-name {
+  text-decoration: line-through;
+  color: var(--gray-400);
+}
+.mat-check-box { display: inline-flex; flex-shrink: 0; }
+.mat-check-name { font-weight: 500; color: var(--gray-700); }
+.mat-check-qty { color: var(--info); font-weight: 500; }
+.mat-check-note { color: var(--gray-400); font-size: 12px; }
+
+.detail-section .detail-label {
+  display: block;
+  margin-bottom: 4px;
+  font-weight: 600;
+  color: var(--gray-600);
+  font-size: 12px;
+}
+
 .modal-overlay {
   position: fixed;
   inset: 0;

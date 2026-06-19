@@ -24,15 +24,13 @@ function checkThemeConsecutive(patterns: PaperPattern[]): CheckIssue[] {
       consecutiveIds.push(patterns[j].id);
       j++;
     }
-    if (consecutiveIds.length >= 3) {
+    if (consecutiveIds.length >= 2) {
       issues.push({
         type: 'theme_consecutive',
         severity: 'warning',
         message: `主题「${patterns[i].theme}」连续出现 ${consecutiveIds.length} 次，建议穿插其他主题以保持练习节奏`,
         patternIds: consecutiveIds,
       });
-      i = j - 1;
-    } else if (consecutiveIds.length === 2) {
       i = j - 1;
     }
   }

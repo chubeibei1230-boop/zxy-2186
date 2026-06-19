@@ -1,5 +1,5 @@
-import { PaperPattern, DIFFICULTY_OPTIONS, STATUS_OPTIONS, Difficulty, PracticeStatus, PatternStep } from '../types';
-import { Plus, Trash2, X } from 'lucide-react';
+import { PaperPattern, DIFFICULTY_OPTIONS, STATUS_OPTIONS, Difficulty, PracticeStatus, PatternStep, MaterialItem } from '../types';
+import { Plus, Trash2, X, Package } from 'lucide-react';
 
 interface PatternEditorProps {
   pattern: PaperPattern;
@@ -29,6 +29,26 @@ export default function PatternEditor({ pattern, onChange, onClose }: PatternEdi
 
   const removeStep = (stepId: string) => {
     update({ steps: pattern.steps.filter(s => s.id !== stepId) });
+  };
+
+  const addMaterial = () => {
+    const newMat: MaterialItem = {
+      id: `mat_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+      name: '',
+      quantity: '',
+      note: '',
+    };
+    update({ materials: [...pattern.materials, newMat] });
+  };
+
+  const updateMaterial = (matId: string, patch: Partial<MaterialItem>) => {
+    update({
+      materials: pattern.materials.map(m => (m.id === matId ? { ...m, ...patch } : m)),
+    });
+  };
+
+  const removeMaterial = (matId: string) => {
+    update({ materials: pattern.materials.filter(m => m.id !== matId) });
   };
 
   return (
@@ -204,6 +224,52 @@ export default function PatternEditor({ pattern, onChange, onClose }: PatternEdi
                     />
                   </div>
                   <button className="icon-btn danger" onClick={() => removeStep(step.id)}>
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
+        <div className="section-block">
+          <div className="section-header">
+            <h4><Package size={14} style={{ display: 'inline', verticalAlign: '-2px', marginRight: 4 }} />材料核对清单</h4>
+            <button className="btn btn-small" onClick={addMaterial}>
+              <Plus size={14} /> 添加材料
+            </button>
+          </div>
+          <div className="materials-list">
+            {pattern.materials.length === 0 ? (
+              <p className="empty-hint">暂无材料，点击「添加材料」创建核对清单</p>
+            ) : (
+              pattern.materials.map((m, idx) => (
+                <div key={m.id} className="material-item">
+                  <div className="material-index">{idx + 1}</div>
+                  <div className="material-fields">
+                    <input
+                      type="text"
+                      className="material-name"
+                      placeholder="材料名称，如：红色宣纸"
+                      value={m.name}
+                      onChange={e => updateMaterial(m.id, { name: e.target.value })}
+                    />
+                    <input
+                      type="text"
+                      className="material-qty"
+                      placeholder="数量"
+                      value={m.quantity}
+                      onChange={e => updateMaterial(m.id, { quantity: e.target.value })}
+                    />
+                    <input
+                      type="text"
+                      className="material-note"
+                      placeholder="备注（可选）"
+                      value={m.note || ''}
+                      onChange={e => updateMaterial(m.id, { note: e.target.value })}
+                    />
+                  </div>
+                  <button className="icon-btn danger" onClick={() => removeMaterial(m.id)}>
                     <Trash2 size={14} />
                   </button>
                 </div>
