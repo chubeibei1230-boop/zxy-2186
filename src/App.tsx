@@ -23,9 +23,10 @@ import PlanEditor from './components/PlanEditor';
 import PracticeExecutionComponent from './components/PracticeExecution';
 import ReviewDetail from './components/ReviewDetail';
 import ReviewList from './components/ReviewList';
+import TrendDashboard from './components/TrendDashboard';
 import {
   Plus, Play, Settings as SettingsIcon, Scissors, RotateCcw, ClipboardCopy,
-  FolderOpen, X, Edit3, FileText, PlayCircle,
+  FolderOpen, X, Edit3, FileText, PlayCircle, BarChart3,
 } from 'lucide-react';
 
 const DEFAULT_FILTERS: FilterState = {
@@ -57,6 +58,7 @@ export default function App() {
   const [showPlanPanel, setShowPlanPanel] = useState(false);
   const [showPlanEditor, setShowPlanEditor] = useState(false);
   const [showReviewList, setShowReviewList] = useState(false);
+  const [showTrendDashboard, setShowTrendDashboard] = useState(false);
   const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS);
   const [settings, setSettings] = useState<AppSettings>({ totalDurationLimit: 180, maxItemsPerOwner: 5 });
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -520,6 +522,25 @@ export default function App() {
     setReviews(updated);
   }, []);
 
+  const handleNavigatePattern = useCallback((patternId: string) => {
+    setShowTrendDashboard(false);
+    const pattern = patterns.find(p => p.id === patternId);
+    if (pattern) {
+      setSelectedId(patternId);
+      if (currentPlan && !currentPlan.items.find(i => i.patternId === patternId)) {
+        setSelectedPlanId(null);
+      }
+    }
+  }, [patterns, currentPlan]);
+
+  const handleViewReviewFromDashboard = useCallback((review: ReviewRecord) => {
+    setShowTrendDashboard(false);
+    setViewingReview(review);
+    setCurrentReviewSummary(review.summary);
+    setCurrentExecution(review.execution);
+    setShowReviewDetail(true);
+  }, []);
+
   if (loading) {
     return (
       <div className="loading-screen">
@@ -560,6 +581,9 @@ export default function App() {
           <button className="btn btn-secondary" onClick={() => { setShowReviewList(true); refreshReviews(); }}>
             <FileText size={16} /> 复盘记录
             {reviews.length > 0 && <span className="btn-count">{reviews.length}</span>}
+          </button>
+          <button className="btn btn-secondary" onClick={() => { setShowTrendDashboard(true); refreshReviews(); }}>
+            <BarChart3 size={16} /> 趋势看板
           </button>
           <button className="btn" onClick={() => addPattern()}>
             <Plus size={16} /> 新增图样
@@ -750,6 +774,17 @@ export default function App() {
           onView={handleViewReview}
           onDelete={handleDeleteReview}
           onClose={() => setShowReviewList(false)}
+        />
+      )}
+
+      {showTrendDashboard && (
+        <TrendDashboard
+          reviews={reviews}
+          plans={plans}
+          patterns={patterns}
+          onViewReview={handleViewReviewFromDashboard}
+          onNavigatePattern={handleNavigatePattern}
+          onClose={() => setShowTrendDashboard(false)}
         />
       )}
     </div>
