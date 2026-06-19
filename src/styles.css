@@ -1992,6 +1992,23 @@ input, select, textarea {
   font-size: 13px;
 }
 
+.material-check-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.material-check {
+  background: white !important;
+  border: 1px solid var(--gray-200) !important;
+  padding: 8px 12px !important;
+}
+
+.material-check-name {
+  font-weight: 500;
+  color: var(--gray-700);
+}
+
 @media (max-width: 680px) {
   .execution-header { flex-direction: column; align-items: stretch; }
   .execution-timer { align-self: center; }

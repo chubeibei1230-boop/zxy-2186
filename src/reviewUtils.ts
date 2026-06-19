@@ -19,7 +19,7 @@ export function generateReviewSummary(execution: PracticeExecution): ReviewSumma
       incompletePatterns.push(pattern);
     }
 
-    if (item.needAssistance) {
+    if (item.needAssistance || item.actualStatus === '需协助') {
       assistancePatterns.push(pattern);
     }
 
@@ -37,10 +37,9 @@ export function generateReviewSummary(execution: PracticeExecution): ReviewSumma
     }
     ownerStats[owner].total++;
     if (item.completed) ownerStats[owner].completed++;
-    if (item.needAssistance) ownerStats[owner].needAssistance++;
+    if (item.needAssistance || item.actualStatus === '需协助') ownerStats[owner].needAssistance++;
 
-    const materialStatus = localStorage.getItem(`practice-mat-checks`);
-    const matChecks = materialStatus ? JSON.parse(materialStatus) : {};
+    const matChecks = item.materialsPrepared || {};
     pattern.materials.forEach(mat => {
       const matEntry = {
         name: mat.name,

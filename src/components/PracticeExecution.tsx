@@ -115,7 +115,9 @@ export default function PracticeExecutionComponent({
   };
 
   const handleNext = () => {
-    const actualDuration = Math.max(1, Math.round(elapsedSeconds / 60));
+    const manualDuration = currentItem.actualDuration || 0;
+    const timedDuration = Math.max(1, Math.round(elapsedSeconds / 60));
+    const actualDuration = manualDuration > 0 ? manualDuration : timedDuration;
     updateCurrentItem({
       actualDuration,
       endedAt: Date.now(),
@@ -139,7 +141,9 @@ export default function PracticeExecutionComponent({
 
   const handlePrev = () => {
     if (currentIndex > 0) {
-      const actualDuration = Math.max(1, Math.round(elapsedSeconds / 60));
+      const manualDuration = currentItem.actualDuration || 0;
+      const timedDuration = Math.max(1, Math.round(elapsedSeconds / 60));
+      const actualDuration = manualDuration > 0 ? manualDuration : timedDuration;
       updateCurrentItem({ actualDuration });
       setElapsedSeconds(0);
       const prevIndex = currentIndex - 1;
@@ -150,9 +154,11 @@ export default function PracticeExecutionComponent({
   };
 
   const handleFinish = () => {
-    const actualDuration = Math.max(1, Math.round(elapsedSeconds / 60));
     const newItems = execution.items.map((item, idx) => {
       if (idx === currentIndex) {
+        const manualDuration = item.actualDuration || 0;
+        const timedDuration = Math.max(1, Math.round(elapsedSeconds / 60));
+        const actualDuration = manualDuration > 0 ? manualDuration : timedDuration;
         return { ...item, actualDuration, endedAt: Date.now() };
       }
       return item;
@@ -351,13 +357,48 @@ export default function PracticeExecutionComponent({
                         backgroundColor: currentItem.actualStatus === status ? STATUS_COLORS[status] + '22' : 'transparent',
                         color: STATUS_COLORS[status],
                       }}
-                      onClick={() => updateCurrentItem({ actualStatus: status })}
+                      onClick={() => {
+                        const updates: Partial<ExecutionItemRecord> = { actualStatus: status };
+                        if (status === '需协助') {
+                          updates.needAssistance = true;
+                        }
+                        updateCurrentItem(updates);
+                      }}
                     >
                       {status}
                     </button>
                   ))}
                 </div>
               </div>
+
+              {pattern.materials.length > 0 && (
+                <div className="form-row">
+                  <label className="form-label">
+                    <Package size={13} style={{ display: 'inline', verticalAlign: '-2px', marginRight: 3 }} />
+                    材料准备确认
+                  </label>
+                  <div className="material-check-list">
+                    {pattern.materials.map(m => {
+                      const checked = currentItem.materialsPrepared?.[m.id] || false;
+                      return (
+                        <label key={m.id} className="checkbox-label material-check">
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={e => {
+                              const newMatPrepared = { ...(currentItem.materialsPrepared || {}), [m.id]: e.target.checked };
+                              updateCurrentItem({ materialsPrepared: newMatPrepared });
+                            }}
+                          />
+                          <span className="material-check-name">{m.name}</span>
+                          {m.quantity && <span className="material-qty">× {m.quantity}</span>}
+                          {m.note && <span className="material-note">（{m.note}）</span>}
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
               <div className="form-row">
                 <label className="form-label">实际耗时（分钟）</label>

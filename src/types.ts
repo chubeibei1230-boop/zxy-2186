@@ -142,6 +142,7 @@ export interface ExecutionItemRecord {
   needAssistance: boolean;
   usedBackupPlan: boolean;
   riskReminded: boolean;
+  materialsPrepared: Record<string, boolean>;
   startedAt: number;
   endedAt?: number;
 }
@@ -190,6 +191,10 @@ export function createExecution(plan: PracticePlan, patterns: PaperPattern[]): P
   const now = Date.now();
   const items: ExecutionItemRecord[] = plan.items.map(item => {
     const pattern = patterns.find(p => p.id === item.patternId) || item.snapshot!;
+    const materialsPrepared: Record<string, boolean> = {};
+    pattern.materials.forEach(mat => {
+      materialsPrepared[mat.id] = false;
+    });
     return {
       patternId: item.patternId,
       patternSnapshot: { ...pattern },
@@ -200,6 +205,7 @@ export function createExecution(plan: PracticePlan, patterns: PaperPattern[]): P
       needAssistance: false,
       usedBackupPlan: false,
       riskReminded: false,
+      materialsPrepared,
       startedAt: 0,
     };
   });

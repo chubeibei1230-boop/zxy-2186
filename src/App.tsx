@@ -504,6 +504,7 @@ export default function App() {
   const handleViewReview = useCallback((review: ReviewRecord) => {
     setViewingReview(review);
     setCurrentReviewSummary(review.summary);
+    setCurrentExecution(review.execution);
     setShowReviewDetail(true);
     setShowReviewList(false);
   }, []);
