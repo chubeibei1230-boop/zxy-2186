@@ -52,7 +52,15 @@ function getDB(): Promise<IDBPDatabase<DBSchema>> {
 export async function getAllPatterns(): Promise<PaperPattern[]> {
   const db = await getDB();
   const items = await db.getAll('patterns');
-  return items.sort((a, b) => a.order - b.order);
+  return items.map(normalizePattern).sort((a, b) => a.order - b.order);
+}
+
+function normalizePattern(pattern: PaperPattern): PaperPattern {
+  return {
+    ...pattern,
+    steps: Array.isArray(pattern.steps) ? pattern.steps : [],
+    materials: Array.isArray(pattern.materials) ? pattern.materials : [],
+  };
 }
 
 export async function savePattern(pattern: PaperPattern): Promise<void> {

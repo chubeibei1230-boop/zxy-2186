@@ -129,7 +129,7 @@ export default function App() {
           ...s,
           id: `step_${now}_${Math.random().toString(36).slice(2, 7)}`,
         })),
-        materials: sourcePattern.materials.map(m => ({
+        materials: (sourcePattern.materials || []).map(m => ({
           ...m,
           id: `mat_${now}_${Math.random().toString(36).slice(2, 7)}`,
         })),
